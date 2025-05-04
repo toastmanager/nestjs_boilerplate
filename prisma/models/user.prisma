@@ -1,0 +1,14 @@
+model User {
+    id           Int      @id @default(autoincrement())
+    username     String
+    email        String   @unique
+    passwordHash String   @map("password_hash")
+    isActive     Boolean  @default(true) @map("is_active")
+    isVerified   Boolean  @default(false) @map("is_verified")
+    createdAt    DateTime @default(now()) @map("created_at")
+    updatedAt    DateTime @updatedAt @map("updated_at")
+
+    refreshTokens RefreshToken[]
+
+    @@map("users")
+}
