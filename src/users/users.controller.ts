@@ -3,11 +3,9 @@ import {
   Delete,
   Get,
   Patch,
-  Put,
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { UpdatePasswordDto } from './dtos/update-password.dto';
 import { UpdateUserDto } from './dtos/update-user.dto';
 import {
   ApiBearerAuth,
@@ -78,12 +76,12 @@ export class UsersController {
     return this.usersService.getUserSensitiveDto(deletedUser);
   }
 
-  @Put('password')
-  @UseGuards(JwtAuthGuard)
-  @ApiUnauthorizedResponse()
-  @ApiBearerAuth()
-  changePassword(
-    @Request() req: RequestWithUser,
-    updatePasswordDto: UpdatePasswordDto,
-  ): void {}
+  // @Put('password')
+  // @UseGuards(JwtAuthGuard)
+  // @ApiUnauthorizedResponse()
+  // @ApiBearerAuth()
+  // changePassword(
+  //   @Request() req: RequestWithUser,
+  //   updatePasswordDto: UpdatePasswordDto,
+  // ): void {}
 }
