@@ -62,14 +62,14 @@ export class AuthService {
     }
 
     if (
-      await this.comparePasswordToHash(loginDto.password, user.passwordHash)
+      !(await this.comparePasswordToHash(loginDto.password, user.passwordHash))
     ) {
       throw new UnauthorizedException('Incorrect credentials');
     }
 
     return {
-      access: await this.createAccessToken(user),
-      refresh: await this.createRefreshToken(user),
+      access_token: await this.createAccessToken(user),
+      refresh_token: await this.createRefreshToken(user),
     };
   }
 
@@ -90,8 +90,8 @@ export class AuthService {
     });
 
     return {
-      access: await this.createAccessToken(user),
-      refresh: await this.createRefreshToken(user),
+      access_token: await this.createAccessToken(user),
+      refresh_token: await this.createRefreshToken(user),
     };
   }
 
@@ -136,7 +136,7 @@ export class AuthService {
 
   async refresh(refreshToken: string): Promise<AuthToken> {
     const payload = await this.verifyToken<RefreshTokenPayload>(refreshToken);
-    await this.checkRefreshTokenPayload(payload);
+    await this.validateAndHandleRefreshTokenPayload(payload);
     await this.refreshTokensService.revoke({
       where: {
         jti: payload.jti,
@@ -153,21 +153,28 @@ export class AuthService {
     }
 
     return {
-      access: await this.createAccessToken(user),
-      refresh: await this.createRefreshToken(user, payload.jti),
+      access_token: await this.createAccessToken(user),
+      refresh_token: await this.createRefreshToken(user, payload.jti),
     };
+  }
+
+  ensureCorrectRefreshTokenType(payload: RefreshTokenPayload): void {
+    if (payload.type !== TokenType.refresh) {
+      throw new BadRequestException(
+        'Invalid token type provided. Expected a refresh token.',
+      );
+    }
   }
 
   /**
    * checks if refresh token payload is valid
-   * raises errors if not
+   * - raises errors if not
+   * - revokes next related tokens if token is revoked
    */
-  async checkRefreshTokenPayload(payload: RefreshTokenPayload): Promise<void> {
-    if (payload.type != TokenType.refresh) {
-      throw new BadRequestException(
-        'Incorrect type of token. It should be "refresh"',
-      );
-    }
+  async validateAndHandleRefreshTokenPayload(
+    payload: RefreshTokenPayload,
+  ): Promise<void> {
+    this.ensureCorrectRefreshTokenType(payload);
 
     const dbToken = await this.refreshTokensService.findUnique({
       where: {
@@ -182,12 +189,22 @@ export class AuthService {
     }
 
     if (dbToken.isRevoked) {
-      await this.refreshTokensService.revokePreviousTokens(dbToken.jti);
+      await this.refreshTokensService.revokeNextTokens(dbToken.jti);
 
-      throw new ForbiddenException(
-        "Предоставленный Refresh Token был использован ранее. Все связанные refresh token'ы будут отозваны",
+      throw new UnauthorizedException(
+        'The provided Refresh Token was used earlier. All refresh tokens created after it have been revoked',
       );
     }
+  }
+
+  async logout(refreshToken: string): Promise<void> {
+    const payload = await this.verifyToken<RefreshTokenPayload>(refreshToken);
+    this.ensureCorrectRefreshTokenType(payload);
+    await this.refreshTokensService.revoke({
+      where: {
+        jti: payload.jti,
+      },
+    });
   }
 
   /**

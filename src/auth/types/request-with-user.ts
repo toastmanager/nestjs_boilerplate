@@ -1,6 +1,6 @@
 import { Request } from 'express';
-import { AccessTokenPayloadBase } from './access-token-payload-base';
+import { AccessTokenPayload } from './access-token-payload';
 
 export type RequestWithUser = Request & {
-  user: AccessTokenPayloadBase;
+  user: AccessTokenPayload;
 };

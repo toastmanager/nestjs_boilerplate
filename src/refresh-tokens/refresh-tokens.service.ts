@@ -50,7 +50,7 @@ export class RefreshTokensService {
   /**
    * revokes next tokens of given refresh token
    */
-  async revokePreviousTokens(jti: string) {
+  async revokeNextTokens(jti: string): Promise<void> {
     const token = await this.prisma.refreshToken.findUnique({
       where: {
         jti: jti,
@@ -65,7 +65,23 @@ export class RefreshTokensService {
       },
     });
     if (token.nextJti) {
-      await this.revokePreviousTokens(token.nextJti);
+      await this.revokeNextTokens(token.nextJti);
     }
+  }
+
+  async revokeAllUserTokens(userId: number) {
+    const revokedTokens = await this.prisma.refreshToken.updateMany({
+      where: {
+        user: {
+          id: userId,
+        },
+        isRevoked: false,
+      },
+      data: {
+        isRevoked: true,
+      },
+    });
+
+    return revokedTokens;
   }
 }
