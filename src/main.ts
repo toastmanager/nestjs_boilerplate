@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as cookieParser from 'cookie-parser';
 
 const APP_ROUTE_PREFIX = '';
 
@@ -19,6 +20,7 @@ async function bootstrap() {
       }),
     )
     .setGlobalPrefix(APP_ROUTE_PREFIX)
+    .use(cookieParser())
     .enableCors({
       credentials: true,
       origin: true,

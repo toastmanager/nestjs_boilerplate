@@ -24,12 +24,16 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthToken } from './dtos/auth-token.dto';
 import { LogoutDto } from './dtos/logout.dto';
 import { RefreshDto } from './dtos/refresh.dto';
-import { Response } from 'express';
+import { CookieOptions, Response } from 'express';
+import { AuthConfig } from './auth.config';
+import { REFRESH_TOKEN_COOKIE_KEY } from './auth.constants';
+import * as ms from 'ms';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly authConfig: AuthConfig,
     private readonly refreshTokensService: RefreshTokensService,
   ) {}
 
@@ -38,16 +42,32 @@ export class AuthController {
   @ApiOkResponse({
     type: AuthToken,
   })
-  login(@Body() loginDto: LoginDto): Promise<AuthToken> {
-    return this.authService.login(loginDto);
+  async login(
+    @Res({
+      passthrough: true,
+    })
+    res: Response,
+    @Body() loginDto: LoginDto,
+  ): Promise<AuthToken> {
+    const authToken = await this.authService.login(loginDto);
+    await this.setRefreshTokenCookie(res, authToken.refresh_token);
+    return authToken;
   }
 
   @Post('register')
   @ApiOkResponse({
     type: AuthToken,
   })
-  register(@Body() registerDto: RegisterDto): Promise<AuthToken> {
-    return this.authService.register(registerDto);
+  async register(
+    @Res({
+      passthrough: true,
+    })
+    res: Response,
+    @Body() registerDto: RegisterDto,
+  ): Promise<AuthToken> {
+    const authToken = await this.authService.register(registerDto);
+    await this.setRefreshTokenCookie(res, authToken.refresh_token);
+    return authToken;
   }
 
   @Post('logout')
@@ -62,6 +82,7 @@ export class AuthController {
     @Body() logoutDto: LogoutDto,
   ): void {
     this.authService.logout(logoutDto.refresh_token);
+    this.clearRefreshTokenCookie(res);
     res.status(HttpStatus.NO_CONTENT);
   }
 
@@ -82,6 +103,7 @@ export class AuthController {
   ): void {
     const { user: payload } = req;
     this.refreshTokensService.revokeAllUserTokens(+payload.sub);
+    this.clearRefreshTokenCookie(res);
     res.status(HttpStatus.NO_CONTENT);
   }
 
@@ -91,8 +113,23 @@ export class AuthController {
   })
   @ApiBadRequestResponse()
   @ApiNotFoundResponse()
-  refresh(@Body() refreshDto: RefreshDto): Promise<AuthToken> {
-    return this.authService.refresh(refreshDto.refresh_token);
+  async refresh(
+    @Request() req: RequestWithUser,
+    @Res({ passthrough: true }) res: Response,
+    @Body() refreshDto: RefreshDto,
+  ): Promise<AuthToken> {
+    if (refreshDto.mode == 'cookie') {
+      const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE_KEY];
+      const authToken = await this.authService.refresh(refreshToken);
+      await this.setRefreshTokenCookie(res, authToken.refresh_token);
+      return authToken;
+    } else {
+      const authToken = await this.authService.refresh(
+        refreshDto.refresh_token,
+      );
+      await this.setRefreshTokenCookie(res, authToken.refresh_token);
+      return authToken;
+    }
   }
 
   // @Post('password/request-reset')
@@ -106,4 +143,29 @@ export class AuthController {
 
   // @Post('email/verify')
   // verifyEmail() {}
+
+  private refreshTokenCookieOptions: CookieOptions = {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+    maxAge: ms(this.authConfig.jwtRefreshTokenExpiresIn as ms.StringValue),
+  };
+
+  private async setRefreshTokenCookie(
+    response: Response,
+    refreshToken: string,
+  ): Promise<void> {
+    response.cookie(
+      REFRESH_TOKEN_COOKIE_KEY,
+      refreshToken,
+      this.refreshTokenCookieOptions,
+    );
+  }
+
+  private clearRefreshTokenCookie(response: Response): void {
+    response.clearCookie(
+      REFRESH_TOKEN_COOKIE_KEY,
+      this.refreshTokenCookieOptions,
+    );
+  }
 }
