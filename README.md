@@ -4,9 +4,13 @@
 
 - Authentication (JWT)
 - S3 storage repository
-- Docker compose file for development (Database & S3 storage)
+- Dockerfile
+- Docker compose file for dependencies (database & S3 storage)
+- Docker compose file for development (server & dependencies)
 
 ### Authentication (JWT)
+
+#### Features
 
 - Access token
 - Auth guard
