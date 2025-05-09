@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { MailerConfig } from './mailer.config';
 import * as nodemailer from 'nodemailer';
 
@@ -6,7 +6,10 @@ import * as nodemailer from 'nodemailer';
 export class MailerService {
   private readonly transporter: nodemailer.Transporter;
 
-  constructor(private readonly mailerConfig: MailerConfig) {
+  constructor(
+    private readonly mailerConfig: MailerConfig,
+    readonly logger: Logger,
+  ) {
     this.transporter = nodemailer.createTransport({
       host: this.mailerConfig.host,
       port: this.mailerConfig.port,
@@ -20,9 +23,9 @@ export class MailerService {
     try {
       this.transporter
         .verify()
-        .then(() => console.log('SMTP server is ready to take messages'));
+        .then(() => logger.log('SMTP server is ready to take messages'));
     } catch (err) {
-      console.error('SMTP server verification failed', err);
+      logger.error('SMTP server verification failed', err);
     }
   }
 
