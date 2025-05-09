@@ -22,4 +22,9 @@ export class MailerConfig {
   @IsOptional()
   @Value('SMTP_PASS')
   pass?: string;
+
+  @IsString()
+  @IsOptional()
+  @Value('SMTP_FROM')
+  from: string = '"No Reply" <noreply@example.com>';
 }

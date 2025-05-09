@@ -1,15 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { MailerConfig } from './mailer.config';
 import * as nodemailer from 'nodemailer';
 
 @Injectable()
-export class MailerService {
+export class MailerService implements OnModuleInit {
   private readonly transporter: nodemailer.Transporter;
+  private readonly logger = new Logger(MailerService.name);
 
-  constructor(
-    private readonly mailerConfig: MailerConfig,
-    readonly logger: Logger,
-  ) {
+  constructor(private readonly mailerConfig: MailerConfig) {
     this.transporter = nodemailer.createTransport({
       host: this.mailerConfig.host,
       port: this.mailerConfig.port,
@@ -19,17 +17,24 @@ export class MailerService {
         pass: this.mailerConfig.pass,
       },
     });
+  }
 
+  async onModuleInit() {
     try {
-      this.transporter
-        .verify()
-        .then(() => logger.log('SMTP server is ready to take messages'));
+      await this.transporter.verify();
+      this.logger.log('SMTP server is ready to take messages');
     } catch (err) {
-      logger.error('SMTP server verification failed', err);
+      this.logger.error('SMTP server verification failed', err);
     }
   }
 
-  async sendMail(options: nodemailer.SendMailOptions) {
-    return this.transporter.sendMail(options);
+  async sendMail(
+    options: nodemailer.SendMailOptions,
+  ): Promise<nodemailer.SentMessageInfo> {
+    const info = this.transporter.sendMail({
+      ...options,
+      from: options.from || this.mailerConfig.from,
+    });
+    return info;
   }
 }
