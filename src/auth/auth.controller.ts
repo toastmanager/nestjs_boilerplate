@@ -42,6 +42,7 @@ export class AuthController {
 
   @Post('login')
   @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
   @ApiOkResponse({
     type: AuthToken,
   })
@@ -64,6 +65,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @ApiBadRequestResponse()
   @ApiOkResponse({
     type: AuthToken,
   })
@@ -148,6 +150,7 @@ export class AuthController {
   }
 
   @Post('password/request-reset')
+  @ApiBadRequestResponse()
   @ApiNoContentResponse()
   async requestPasswordReset(
     @Request() req: ExpressRequest,
@@ -239,7 +242,7 @@ export class AuthController {
     return;
   }
 
-  private refreshTokenCookieOptions: CookieOptions = {
+  private readonly refreshTokenCookieOptions: CookieOptions = {
     httpOnly: true,
     secure: true,
     sameSite: 'strict',
