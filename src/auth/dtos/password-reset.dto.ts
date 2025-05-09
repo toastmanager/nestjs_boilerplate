@@ -8,7 +8,9 @@ import {
 import { STRONG_PASSWORD_OPTIONS } from '../auth.constants';
 
 export class PasswordResetDto {
-  @ApiProperty()
+  @ApiProperty({
+    example: 'example@example.com',
+  })
   @IsEmail()
   email: string;
 

@@ -152,6 +152,10 @@ export class AuthController {
   async requestPasswordReset(
     @Request() req: ExpressRequest,
     @Body() requestPasswordResetDto: RequestPasswordResetDto,
+    @Res({
+      passthrough: true,
+    })
+    res: Response,
   ) {
     const { ip, headers } = req;
     this.authService.requestPasswordReset({
@@ -161,6 +165,7 @@ export class AuthController {
       ip: ip,
       userAgent: headers['user-agent'],
     });
+    res.status(HttpStatus.NO_CONTENT);
     return;
   }
 
@@ -168,6 +173,10 @@ export class AuthController {
   @ApiBadRequestResponse()
   @ApiNoContentResponse()
   async resetPassword(
+    @Res({
+      passthrough: true,
+    })
+    res: Response,
     @Body() passwordResetDto: PasswordResetDto,
   ): Promise<void> {
     await this.authService.resetPassword({
@@ -177,6 +186,7 @@ export class AuthController {
       newPassword: passwordResetDto.newPassword,
       token: passwordResetDto.token,
     });
+    res.status(HttpStatus.NO_CONTENT);
     return;
   }
 
@@ -185,7 +195,13 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiUnauthorizedResponse()
   @ApiNoContentResponse()
-  async requestEmailVerification(@Request() req: RequestWithUser) {
+  async requestEmailVerification(
+    @Res({
+      passthrough: true,
+    })
+    res: Response,
+    @Request() req: RequestWithUser,
+  ) {
     const { user, ip, headers } = req;
     this.authService.requestEmailVerification({
       where: {
@@ -194,6 +210,7 @@ export class AuthController {
       ip,
       userAgent: headers['user-agent'],
     });
+    res.status(HttpStatus.NO_CONTENT);
     return;
   }
 
@@ -204,6 +221,10 @@ export class AuthController {
   @ApiUnauthorizedResponse()
   @ApiBadRequestResponse()
   async verifyEmail(
+    @Res({
+      passthrough: true,
+    })
+    res: Response,
     @Request() req: RequestWithUser,
     @Body() verifyEmailDto: VerifyEmailDto,
   ) {
@@ -214,6 +235,7 @@ export class AuthController {
       },
       token: verifyEmailDto.token,
     });
+    res.status(HttpStatus.NO_CONTENT);
     return;
   }
 
