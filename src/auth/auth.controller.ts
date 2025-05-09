@@ -11,7 +11,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dtos/login.dto';
 import { RegisterDto } from './dtos/register.dto';
 import { RequestWithUser } from './types/request-with-user';
-import { RefreshTokensService } from 'src/refresh-tokens/refresh-tokens.service';
+import { RefreshTokensService } from 'src/auth/refresh-tokens/refresh-tokens.service';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -24,9 +24,12 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthToken } from './dtos/auth-token.dto';
 import { LogoutDto } from './dtos/logout.dto';
 import { RefreshDto } from './dtos/refresh.dto';
-import { CookieOptions, Response } from 'express';
+import { CookieOptions, Request as ExpressRequest, Response } from 'express';
 import { AuthConfig } from './auth.config';
 import { REFRESH_TOKEN_COOKIE_KEY } from './auth.constants';
+import { PasswordResetDto } from './dtos/password-reset.dto';
+import { VerifyEmailDto } from './dtos/verify-email.dto';
+import { RequestPasswordResetDto } from './dtos/request-password-reset.dto';
 import * as ms from 'ms';
 
 @Controller('auth')
@@ -43,13 +46,19 @@ export class AuthController {
     type: AuthToken,
   })
   async login(
+    @Request() req: ExpressRequest,
     @Res({
       passthrough: true,
     })
     res: Response,
     @Body() loginDto: LoginDto,
   ): Promise<AuthToken> {
-    const authToken = await this.authService.login(loginDto);
+    const { ip, headers } = req;
+    const authToken = await this.authService.login({
+      loginDto,
+      ip,
+      userAgent: headers['user-agent'],
+    });
     await this.setRefreshTokenCookie(res, authToken.refresh_token);
     return authToken;
   }
@@ -65,7 +74,7 @@ export class AuthController {
     res: Response,
     @Body() registerDto: RegisterDto,
   ): Promise<AuthToken> {
-    const authToken = await this.authService.register(registerDto);
+    const authToken = await this.authService.register({ registerDto });
     await this.setRefreshTokenCookie(res, authToken.refresh_token);
     return authToken;
   }
@@ -81,7 +90,7 @@ export class AuthController {
     res: Response,
     @Body() logoutDto: LogoutDto,
   ): void {
-    this.authService.logout(logoutDto.refresh_token);
+    this.authService.logout({ refreshToken: logoutDto.refresh_token });
     this.clearRefreshTokenCookie(res);
     res.status(HttpStatus.NO_CONTENT);
   }
@@ -118,31 +127,95 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Body() refreshDto: RefreshDto,
   ): Promise<AuthToken> {
-    if (refreshDto.mode == 'cookie') {
+    if (refreshDto.mode === 'cookie') {
       const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE_KEY];
-      const authToken = await this.authService.refresh(refreshToken);
+      const authToken = await this.authService.refresh({
+        refreshToken,
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
       await this.setRefreshTokenCookie(res, authToken.refresh_token);
       return authToken;
     } else {
-      const authToken = await this.authService.refresh(
-        refreshDto.refresh_token,
-      );
+      const authToken = await this.authService.refresh({
+        refreshToken: refreshDto.refresh_token,
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
       await this.setRefreshTokenCookie(res, authToken.refresh_token);
       return authToken;
     }
   }
 
-  // @Post('password/request-reset')
-  // requestPasswordReset() {}
+  @Post('password/request-reset')
+  @ApiNoContentResponse()
+  async requestPasswordReset(
+    @Request() req: ExpressRequest,
+    @Body() requestPasswordResetDto: RequestPasswordResetDto,
+  ) {
+    const { ip, headers } = req;
+    this.authService.requestPasswordReset({
+      where: {
+        email: requestPasswordResetDto.email,
+      },
+      ip: ip,
+      userAgent: headers['user-agent'],
+    });
+    return;
+  }
 
-  // @Post('password/reset')
-  // resetPassword() {}
+  @Post('password/reset')
+  @ApiBadRequestResponse()
+  @ApiNoContentResponse()
+  async resetPassword(
+    @Body() passwordResetDto: PasswordResetDto,
+  ): Promise<void> {
+    await this.authService.resetPassword({
+      where: {
+        email: passwordResetDto.email,
+      },
+      newPassword: passwordResetDto.newPassword,
+      token: passwordResetDto.token,
+    });
+    return;
+  }
 
-  // @Post('email/request-verification')
-  // requestEmailVerification() {}
+  @Post('email/request-verification')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse()
+  @ApiNoContentResponse()
+  async requestEmailVerification(@Request() req: RequestWithUser) {
+    const { user, ip, headers } = req;
+    this.authService.requestEmailVerification({
+      where: {
+        id: +user.sub,
+      },
+      ip,
+      userAgent: headers['user-agent'],
+    });
+    return;
+  }
 
-  // @Post('email/verify')
-  // verifyEmail() {}
+  @Post('email/verify')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiNoContentResponse()
+  @ApiUnauthorizedResponse()
+  @ApiBadRequestResponse()
+  async verifyEmail(
+    @Request() req: RequestWithUser,
+    @Body() verifyEmailDto: VerifyEmailDto,
+  ) {
+    const { user: payload } = req;
+    await this.authService.verifyEmail({
+      where: {
+        id: +payload.sub,
+      },
+      token: verifyEmailDto.token,
+    });
+    return;
+  }
 
   private refreshTokenCookieOptions: CookieOptions = {
     httpOnly: true,

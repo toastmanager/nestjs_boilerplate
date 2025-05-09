@@ -1,8 +1,10 @@
 model RefreshToken {
-    jti       String  @id @unique @default(uuid())
+    jti       String  @id @unique @default(cuid())
     isRevoked Boolean @default(false) @map("is_revoked")
     userId    Int     @map("user_id")
     user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    ipAddress String?
+    userAgent String?
 
     nextJti  String?       @unique @map("next_jti")
     next     RefreshToken? @relation("NextToken", fields: [nextJti], references: [jti])
