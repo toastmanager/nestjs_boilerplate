@@ -6,10 +6,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthConfig } from './auth.config';
 import { RefreshTokensModule } from 'src/auth/refresh-tokens/refresh-tokens.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { PasswordResetModule } from './password-reset/password-reset.module';
-import { EmailVerificationModule } from './email-verification/email-verification.module';
 import { AuthMailerService } from './auth-mailer.service';
 import { MailerModule } from 'src/mailer/mailer.module';
+import { EmailVerificationTokenService } from './email-verification/email-verification.service';
+import { PasswordResetTokenService } from './password-reset/password-reset.service';
 
 @Module({
   imports: [
@@ -23,10 +23,14 @@ import { MailerModule } from 'src/mailer/mailer.module';
       }),
     }),
     MailerModule,
-    EmailVerificationModule,
-    PasswordResetModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthMailerService, JwtStrategy],
+  providers: [
+    AuthService,
+    AuthMailerService,
+    JwtStrategy,
+    EmailVerificationTokenService,
+    PasswordResetTokenService,
+  ],
 })
 export class AuthModule {}

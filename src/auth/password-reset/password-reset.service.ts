@@ -2,9 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PasswordResetToken, Prisma } from 'generated/prisma/client';
 import { UsersService } from 'src/users/users.service';
-import { PASSWORD_RESET_TOKEN_EXPIRATION_SECONDS } from '../auth.constants';
+import { PASSWORD_RESET_TOKEN_EXPIRATION_MILLISECONDS } from '../auth.constants';
 import { AuthMailerService } from '../auth-mailer.service';
 import * as crypto from 'crypto';
+import { RequestPasswordResetArgs } from '../types/request-password-reset-args';
 
 @Injectable()
 export class PasswordResetTokenService {
@@ -50,12 +51,7 @@ export class PasswordResetTokenService {
     return passwordResetToken;
   }
 
-  async requestPasswordReset(args: {
-    where: Prisma.UserWhereUniqueInput;
-    ip?: string;
-    userAgent?: string;
-    expirationTime?: number;
-  }): Promise<void> {
+  async requestPasswordReset(args: RequestPasswordResetArgs): Promise<void> {
     try {
       const { where } = args;
       const user = await this.usersService.findUnique({
@@ -90,7 +86,8 @@ export class PasswordResetTokenService {
 
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = this.hashPasswordResetToken(token);
-    const expiresIn = expirationTime ?? PASSWORD_RESET_TOKEN_EXPIRATION_SECONDS;
+    const expiresIn =
+      expirationTime ?? PASSWORD_RESET_TOKEN_EXPIRATION_MILLISECONDS;
 
     await this.create({
       data: {

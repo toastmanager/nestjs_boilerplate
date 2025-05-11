@@ -3,8 +3,9 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { EmailVerificationToken, Prisma } from 'generated/prisma/client';
 import { AuthMailerService } from '../auth-mailer.service';
 import { UsersService } from 'src/users/users.service';
-import { EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS } from '../auth.constants';
+import { EMAIL_VERIFICATION_TOKEN_EXPIRATION_MILLISECONDS } from '../auth.constants';
 import * as crypto from 'crypto';
+import { RequestEmailVerificationArgs } from '../types/request-email-verification-args';
 
 @Injectable()
 export class EmailVerificationTokenService {
@@ -50,12 +51,7 @@ export class EmailVerificationTokenService {
     return emailVerificationToken;
   }
 
-  async requestEmailVerification(args: {
-    where: Prisma.UserWhereUniqueInput;
-    ip?: string;
-    userAgent?: string;
-    expirationTime?: number;
-  }) {
+  async requestEmailVerification(args: RequestEmailVerificationArgs) {
     const { where } = args;
     const user = await this.usersService.findUnique({
       where,
@@ -88,7 +84,7 @@ export class EmailVerificationTokenService {
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiresIn =
-      expirationTime ?? EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS;
+      expirationTime ?? EMAIL_VERIFICATION_TOKEN_EXPIRATION_MILLISECONDS;
 
     await this.create({
       data: {
@@ -109,6 +105,6 @@ export class EmailVerificationTokenService {
 
   isValidToken(args: { token?: EmailVerificationToken }) {
     const { token } = args;
-    return !(!token || token.expiresAt < new Date() || token.isRevoked);
+    return token && token.expiresAt >= new Date() && !token.isRevoked;
   }
 }

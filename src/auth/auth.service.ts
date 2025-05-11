@@ -20,6 +20,8 @@ import { RefreshTokenPayload } from './types/refresh-token-payload';
 import { TokenType } from './types/token-type';
 import { EmailVerificationTokenService } from './email-verification/email-verification.service';
 import { PasswordResetTokenService } from './password-reset/password-reset.service';
+import { RequestEmailVerificationArgs } from './types/request-email-verification-args';
+import { RequestPasswordResetArgs } from './types/request-password-reset-args';
 
 @Injectable()
 export class AuthService {
@@ -198,6 +200,10 @@ export class AuthService {
     }
   }
 
+  async requestEmailVerification(args: RequestEmailVerificationArgs) {
+    return this.emailVerificationTokenService.requestEmailVerification(args);
+  }
+
   async verifyEmail(args: {
     where: Prisma.UserWhereUniqueInput;
     token: string;
@@ -235,6 +241,10 @@ export class AuthService {
     });
 
     return;
+  }
+
+  async requestPasswordReset(args: RequestPasswordResetArgs) {
+    return this.passwordResetTokenService.requestPasswordReset(args);
   }
 
   async resetPassword(args: {
