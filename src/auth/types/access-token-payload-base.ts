@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsDate,
+  IsEmail,
   IsEnum,
   IsNotEmpty,
   IsString,
@@ -17,6 +18,9 @@ export class AccessTokenPayloadBase {
   @IsString()
   @IsNotEmpty()
   username: string;
+
+  @IsEmail()
+  email: string;
 
   @IsDate()
   createdAt: Date;

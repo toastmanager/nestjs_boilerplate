@@ -7,7 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from 'src/users/users.service';
 import { LoginDto } from './dtos/login.dto';
-import { User } from 'generated/prisma';
+import { Prisma, User } from 'generated/prisma';
 import { AuthToken } from './dtos/auth-token.dto';
 import { RegisterDto } from './dtos/register.dto';
 import { AccessTokenPayloadBase } from 'src/auth/types/access-token-payload-base';
@@ -15,14 +15,20 @@ import { SALT_ROUNDS } from './auth.constants';
 import { RefreshTokenPayloadBase } from './types/refresh-token-payload-base';
 import { AuthConfig } from './auth.config';
 import * as bcrypt from 'bcrypt';
-import { RefreshTokensService } from 'src/refresh-tokens/refresh-tokens.service';
+import { RefreshTokensService } from 'src/auth/refresh-tokens/refresh-tokens.service';
 import { RefreshTokenPayload } from './types/refresh-token-payload';
 import { TokenType } from './types/token-type';
+import { EmailVerificationTokenService } from './email-verification/email-verification.service';
+import { PasswordResetTokenService } from './password-reset/password-reset.service';
+import { RequestEmailVerificationArgs } from './types/request-email-verification-args';
+import { RequestPasswordResetArgs } from './types/request-password-reset-args';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
+    private readonly emailVerificationTokenService: EmailVerificationTokenService,
+    private readonly passwordResetTokenService: PasswordResetTokenService,
     private readonly refreshTokensService: RefreshTokensService,
     private readonly authConfig: AuthConfig,
     private readonly jwtService: JwtService,
@@ -32,6 +38,7 @@ export class AuthService {
     return {
       type: TokenType.access,
       username: user.username,
+      email: user.email,
       isActive: user.isActive,
       updatedAt: user.updatedAt,
       createdAt: user.createdAt,
@@ -46,7 +53,12 @@ export class AuthService {
     };
   }
 
-  async login(loginDto: LoginDto): Promise<AuthToken> {
+  async login(args: {
+    loginDto: LoginDto;
+    ip?: string;
+    userAgent?: string;
+  }): Promise<AuthToken> {
+    const { loginDto, userAgent, ip } = args;
     const user = await this.usersService.findUnique({
       where: {
         email: loginDto.email.toLowerCase(),
@@ -67,12 +79,18 @@ export class AuthService {
     }
 
     return {
-      access_token: await this.createAccessToken(user),
-      refresh_token: await this.createRefreshToken(user),
+      access_token: await this.createAccessToken({ user }),
+      refresh_token: await this.createRefreshToken({ user, ip, userAgent }),
     };
   }
 
-  async register(registerDto: RegisterDto): Promise<AuthToken> {
+  async register(args: {
+    registerDto: RegisterDto;
+    ip?: string;
+    userAgent?: string;
+  }): Promise<AuthToken> {
+    const { registerDto, ip, userAgent } = args;
+
     await this.usersService.checkUserExistence({
       where: {
         email: registerDto.email,
@@ -89,15 +107,19 @@ export class AuthService {
     });
 
     return {
-      access_token: await this.createAccessToken(user),
-      refresh_token: await this.createRefreshToken(user),
+      access_token: await this.createAccessToken({ user }),
+      refresh_token: await this.createRefreshToken({ user, ip, userAgent }),
     };
   }
 
-  async createRefreshToken(
-    user: User,
-    previousTokenJti?: string,
-  ): Promise<string> {
+  async createRefreshToken(args: {
+    user: User;
+    ip?: string;
+    userAgent?: string;
+    previousTokenJti?: string;
+  }): Promise<string> {
+    const { user, ip, userAgent, previousTokenJti } = args;
+
     const dbToken = await this.refreshTokensService.create({
       data: {
         user: {
@@ -105,6 +127,8 @@ export class AuthService {
             id: user.id,
           },
         },
+        ipAddress: ip,
+        userAgent: userAgent,
         ...(!previousTokenJti
           ? {}
           : {
@@ -125,7 +149,8 @@ export class AuthService {
     return token;
   }
 
-  async createAccessToken(user: User): Promise<string> {
+  async createAccessToken(args: { user: User }): Promise<string> {
+    const { user } = args;
     const payload = this.createAccessTokenPayload(user);
     const token = await this.jwtService.signAsync(payload, {
       subject: user.id.toString(),
@@ -133,7 +158,12 @@ export class AuthService {
     return token;
   }
 
-  async refresh(refreshToken: string): Promise<AuthToken> {
+  async refresh(args: {
+    refreshToken: string;
+    ip?: string;
+    userAgent?: string;
+  }): Promise<AuthToken> {
+    const { refreshToken, ip, userAgent } = args;
     const payload = await this.verifyToken<RefreshTokenPayload>(refreshToken);
     await this.validateAndHandleRefreshTokenPayload(payload);
     await this.refreshTokensService.revoke({
@@ -152,8 +182,13 @@ export class AuthService {
     }
 
     return {
-      access_token: await this.createAccessToken(user),
-      refresh_token: await this.createRefreshToken(user, payload.jti),
+      access_token: await this.createAccessToken({ user }),
+      refresh_token: await this.createRefreshToken({
+        user,
+        ip,
+        userAgent,
+        previousTokenJti: payload.jti,
+      }),
     };
   }
 
@@ -163,6 +198,95 @@ export class AuthService {
         'Invalid token type provided. Expected a refresh token.',
       );
     }
+  }
+
+  async requestEmailVerification(args: RequestEmailVerificationArgs) {
+    return this.emailVerificationTokenService.requestEmailVerification(args);
+  }
+
+  async verifyEmail(args: {
+    where: Prisma.UserWhereUniqueInput;
+    token: string;
+  }): Promise<void> {
+    const { where, token } = args;
+    const dbVerificationToken =
+      await this.emailVerificationTokenService.findFirst({
+        where: {
+          token: token,
+          user: where,
+        },
+      });
+
+    const isTokenValid = this.emailVerificationTokenService.isValidToken({
+      token: dbVerificationToken,
+    });
+    if (!isTokenValid) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    await this.usersService.update({
+      where: where,
+      data: {
+        isVerified: true,
+      },
+    });
+
+    await this.emailVerificationTokenService.update({
+      data: {
+        isRevoked: true,
+      },
+      where: {
+        id: dbVerificationToken.id,
+      },
+    });
+
+    return;
+  }
+
+  async requestPasswordReset(args: RequestPasswordResetArgs) {
+    return this.passwordResetTokenService.requestPasswordReset(args);
+  }
+
+  async resetPassword(args: {
+    where: Prisma.UserWhereUniqueInput;
+    token: string;
+    newPassword: string;
+  }) {
+    const { where, token, newPassword } = args;
+    const tokenHash =
+      this.passwordResetTokenService.hashPasswordResetToken(token);
+    const dbVerificationToken = await this.passwordResetTokenService.findFirst({
+      where: {
+        tokenHash: tokenHash,
+        user: where,
+      },
+    });
+
+    const isTokenValid = this.passwordResetTokenService.isValidToken({
+      token: dbVerificationToken,
+    });
+    if (!isTokenValid) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    const newPasswordHash = await this.hashPassword(newPassword);
+    await this.usersService.update({
+      where: where,
+      data: {
+        passwordHash: newPasswordHash,
+      },
+    });
+
+    await this.passwordResetTokenService.update({
+      data: {
+        isRevoked: true,
+      },
+      where: {
+        id: dbVerificationToken.id,
+      },
+    });
+
+    return;
   }
 
   /**
@@ -196,7 +320,8 @@ export class AuthService {
     }
   }
 
-  async logout(refreshToken: string): Promise<void> {
+  async logout(args: { refreshToken: string }): Promise<void> {
+    const { refreshToken } = args;
     const payload = await this.verifyToken<RefreshTokenPayload>(refreshToken);
     this.ensureCorrectRefreshTokenType(payload);
     await this.refreshTokensService.revoke({

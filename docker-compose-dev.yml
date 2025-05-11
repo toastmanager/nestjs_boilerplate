@@ -39,6 +39,19 @@ services:
       timeout: 5s
       retries: 5
 
+  mailpit:
+    image: axllent/mailpit:v1.24.2
+    container_name: mailpit
+    restart: unless-stopped
+    volumes:
+      - mailpit_data:/data
+    ports:
+      - 8025:8025
+      - 1025:1025
+    environment:
+      MP_DATABASE: /data/mailpit.db
+
 volumes:
   db_data:
   storage_data:
+  mailpit_data:

@@ -5,6 +5,7 @@ import {
   IsString,
   IsStrongPassword,
 } from 'class-validator';
+import { STRONG_PASSWORD_OPTIONS } from '../auth.constants';
 
 export class RegisterDto {
   @ApiProperty({
@@ -24,11 +25,6 @@ export class RegisterDto {
     example: 'password123',
   })
   @IsString()
-  @IsStrongPassword({
-    minLowercase: 0,
-    minUppercase: 0,
-    minSymbols: 0,
-    minNumbers: 0,
-  })
+  @IsStrongPassword(STRONG_PASSWORD_OPTIONS)
   password: string;
 }

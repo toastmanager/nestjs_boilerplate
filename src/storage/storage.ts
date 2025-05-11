@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -14,7 +14,10 @@ import { StorageConfig } from './storage.config';
 
 @Injectable()
 export abstract class StorageRepository {
-  constructor(private readonly storageConfig: StorageConfig) {
+  constructor(
+    private readonly storageConfig: StorageConfig,
+    private readonly logger: Logger,
+  ) {
     this.bucketName = this.getBucketName();
     this.s3Client = new S3Client({
       credentials: {
@@ -39,19 +42,21 @@ export abstract class StorageRepository {
       );
     } catch (error) {
       if (error.name === 'NotFound') {
-        console.log(`Bucket ${this.bucketName} does not exist. Creating...`);
+        this.logger.log(
+          `Bucket ${this.bucketName} does not exist. Creating...`,
+        );
         await this.s3Client.send(
           new CreateBucketCommand({ Bucket: this.bucketName }),
         );
-        console.log(`Bucket ${this.bucketName} created.`);
+        this.logger.log(`Bucket ${this.bucketName} created.`);
         return;
       } else if (error.name === '403') {
-        console.error(
+        this.logger.error(
           'Access to S3 storage is forbidden. It may appear if S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY environment variables are invalid',
         );
         return;
       } else {
-        console.error(
+        this.logger.error(
           `Unexpected error after trying to ensure S3 bucket existence. Bucket name: ${this.bucketName}`,
         );
         throw error;
