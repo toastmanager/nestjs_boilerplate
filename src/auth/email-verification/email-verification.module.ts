@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { EmailVerificationRepo } from './email-verification.repository';
+import { EmailVerificationService } from './email-verification.service';
 
 @Module({
-  providers: [EmailVerificationRepo],
-  exports: [EmailVerificationRepo],
+  providers: [EmailVerificationService],
+  exports: [EmailVerificationService],
 })
 export class EmailVerificationModule {}

@@ -23,8 +23,8 @@ import * as crypto from 'crypto';
 import { RefreshTokensService } from 'src/auth/refresh-tokens/refresh-tokens.service';
 import { RefreshTokenPayload } from './types/refresh-token-payload';
 import { TokenType } from './types/token-type';
-import { EmailVerificationRepo } from './email-verification/email-verification.repository';
-import { PasswordResetRepo } from './password-reset/password-reset.repository';
+import { EmailVerificationService } from './email-verification/email-verification.service';
+import { PasswordResetService } from './password-reset/password-reset.service';
 import { AuthMailerService } from './auth-mailer.service';
 
 @Injectable()
@@ -32,8 +32,8 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly authMailerService: AuthMailerService,
-    private readonly emailVerificationRepo: EmailVerificationRepo,
-    private readonly passwordResetRepo: PasswordResetRepo,
+    private readonly emailVerificationService: EmailVerificationService,
+    private readonly passwordResetService: PasswordResetService,
     private readonly refreshTokensService: RefreshTokensService,
     private readonly authConfig: AuthConfig,
     private readonly jwtService: JwtService,
@@ -205,69 +205,12 @@ export class AuthService {
     }
   }
 
-  async requestEmailVerification(args: {
-    where: Prisma.UserWhereUniqueInput;
-    ip?: string;
-    userAgent?: string;
-    expirationTime?: number;
-  }) {
-    const { where } = args;
-    const user = await this.usersService.findUnique({
-      where,
-      select: { email: true },
-    });
-
-    const verificationToken = await this.generateEmailVerificationToken(args);
-
-    await this.authMailerService.sendVerificationEmail({
-      email: user.email,
-      verificationToken,
-    });
-  }
-
-  async generateEmailVerificationToken(args: {
-    where: Prisma.UserWhereUniqueInput;
-    ip?: string;
-    userAgent?: string;
-    expirationTime?: number;
-  }): Promise<string> {
-    const { where, ip, userAgent, expirationTime } = args;
-
-    const user = await this.usersService.findUnique({
-      where,
-    });
-
-    if (!user) {
-      throw new NotFoundException('User with this email does not exist');
-    }
-
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresIn =
-      expirationTime ?? EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS;
-
-    await this.emailVerificationRepo.create({
-      data: {
-        user: {
-          connect: {
-            id: user.id,
-          },
-        },
-        ip,
-        userAgent,
-        token,
-        expiresAt: new Date(Date.now() + expiresIn),
-      },
-    });
-
-    return token;
-  }
-
   async verifyEmail(args: {
     where: Prisma.UserWhereUniqueInput;
     token: string;
   }): Promise<void> {
     const { where, token } = args;
-    const dbVerificationToken = await this.emailVerificationRepo.findFirst({
+    const dbVerificationToken = await this.emailVerificationService.findFirst({
       where: {
         token: token,
         user: where,
@@ -290,7 +233,7 @@ export class AuthService {
       },
     });
 
-    await this.emailVerificationRepo.update({
+    await this.emailVerificationService.update({
       data: {
         isRevoked: true,
       },
@@ -302,77 +245,14 @@ export class AuthService {
     return;
   }
 
-  async requestPasswordReset(args: {
-    where: Prisma.UserWhereUniqueInput;
-    ip?: string;
-    userAgent?: string;
-    expirationTime?: number;
-  }): Promise<void> {
-    try {
-      const { where } = args;
-      const user = await this.usersService.findUnique({
-        where,
-        select: { email: true },
-      });
-      const resetToken = await this.generatePasswordResetToken(args);
-      await this.authMailerService.sendPasswordResetEmail({
-        email: user.email,
-        resetToken,
-      });
-    } catch (_) {
-      // Ignore to prevent mail leak
-    }
-  }
-
-  async generatePasswordResetToken(args: {
-    where: Prisma.UserWhereUniqueInput;
-    ip?: string;
-    userAgent?: string;
-    expirationTime?: number;
-  }): Promise<string> {
-    const { where, ip, userAgent, expirationTime } = args;
-
-    const user = await this.usersService.findUnique({
-      where,
-    });
-
-    if (!user) {
-      throw new NotFoundException('User with this credentials does not exist');
-    }
-
-    const token = crypto.randomBytes(32).toString('hex');
-    const tokenHash = this.hashPasswordResetToken(token);
-    const expiresIn = expirationTime ?? PASSWORD_RESET_TOKEN_EXPIRATION_SECONDS;
-
-    await this.passwordResetRepo.create({
-      data: {
-        user: {
-          connect: {
-            id: user.id,
-          },
-        },
-        ip: ip,
-        userAgent,
-        tokenHash,
-        expiresAt: new Date(Date.now() + expiresIn),
-      },
-    });
-
-    return token;
-  }
-
-  hashPasswordResetToken(token: string) {
-    return crypto.createHash('sha256').update(token).digest('hex');
-  }
-
   async resetPassword(args: {
     where: Prisma.UserWhereUniqueInput;
     token: string;
     newPassword: string;
   }) {
     const { where, token, newPassword } = args;
-    const tokenHash = this.hashPasswordResetToken(token);
-    const dbVerificationToken = await this.passwordResetRepo.findFirst({
+    const tokenHash = this.passwordResetService.hashPasswordResetToken(token);
+    const dbVerificationToken = await this.passwordResetService.findFirst({
       where: {
         tokenHash: tokenHash,
         user: where,
@@ -396,7 +276,7 @@ export class AuthService {
       },
     });
 
-    await this.passwordResetRepo.update({
+    await this.passwordResetService.update({
       data: {
         isRevoked: true,
       },
