@@ -18,16 +18,15 @@ import * as bcrypt from 'bcrypt';
 import { RefreshTokensService } from 'src/auth/refresh-tokens/refresh-tokens.service';
 import { RefreshTokenPayload } from './types/refresh-token-payload';
 import { TokenType } from './types/token-type';
-import { EmailVerificationService } from './email-verification/email-verification.service';
-import { PasswordResetService } from './password-reset/password-reset.service';
-import { AuthMailerService } from './auth-mailer.service';
+import { EmailVerificationTokenService } from './email-verification/email-verification.service';
+import { PasswordResetTokenService } from './password-reset/password-reset.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
-    private readonly emailVerificationService: EmailVerificationService,
-    private readonly passwordResetService: PasswordResetService,
+    private readonly emailVerificationTokenService: EmailVerificationTokenService,
+    private readonly passwordResetTokenService: PasswordResetTokenService,
     private readonly refreshTokensService: RefreshTokensService,
     private readonly authConfig: AuthConfig,
     private readonly jwtService: JwtService,
@@ -204,14 +203,15 @@ export class AuthService {
     token: string;
   }): Promise<void> {
     const { where, token } = args;
-    const dbVerificationToken = await this.emailVerificationService.findFirst({
-      where: {
-        token: token,
-        user: where,
-      },
-    });
+    const dbVerificationToken =
+      await this.emailVerificationTokenService.findFirst({
+        where: {
+          token: token,
+          user: where,
+        },
+      });
 
-    const isTokenValid = this.emailVerificationService.isValidToken({
+    const isTokenValid = this.emailVerificationTokenService.isValidToken({
       token: dbVerificationToken,
     });
     if (!isTokenValid) {
@@ -225,7 +225,7 @@ export class AuthService {
       },
     });
 
-    await this.emailVerificationService.update({
+    await this.emailVerificationTokenService.update({
       data: {
         isRevoked: true,
       },
@@ -243,15 +243,16 @@ export class AuthService {
     newPassword: string;
   }) {
     const { where, token, newPassword } = args;
-    const tokenHash = this.passwordResetService.hashPasswordResetToken(token);
-    const dbVerificationToken = await this.passwordResetService.findFirst({
+    const tokenHash =
+      this.passwordResetTokenService.hashPasswordResetToken(token);
+    const dbVerificationToken = await this.passwordResetTokenService.findFirst({
       where: {
         tokenHash: tokenHash,
         user: where,
       },
     });
 
-    const isTokenValid = this.passwordResetService.isValidToken({
+    const isTokenValid = this.passwordResetTokenService.isValidToken({
       token: dbVerificationToken,
     });
     if (!isTokenValid) {
@@ -266,7 +267,7 @@ export class AuthService {
       },
     });
 
-    await this.passwordResetService.update({
+    await this.passwordResetTokenService.update({
       data: {
         isRevoked: true,
       },

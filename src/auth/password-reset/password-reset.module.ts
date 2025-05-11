@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { PasswordResetService } from './password-reset.service';
+import { PasswordResetTokenService } from './password-reset.service';
 
 @Module({
-  providers: [PasswordResetService],
-  exports: [PasswordResetService],
+  providers: [PasswordResetTokenService],
+  exports: [PasswordResetTokenService],
 })
 export class PasswordResetModule {}

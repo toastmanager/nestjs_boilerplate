@@ -7,7 +7,7 @@ import { EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS } from '../auth.constants';
 import * as crypto from 'crypto';
 
 @Injectable()
-export class EmailVerificationService {
+export class EmailVerificationTokenService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authMailerService: AuthMailerService,

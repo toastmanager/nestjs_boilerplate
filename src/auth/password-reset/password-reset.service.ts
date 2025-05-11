@@ -7,7 +7,7 @@ import { AuthMailerService } from '../auth-mailer.service';
 import * as crypto from 'crypto';
 
 @Injectable()
-export class PasswordResetService {
+export class PasswordResetTokenService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authMailerService: AuthMailerService,
