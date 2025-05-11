@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma } from 'generated/prisma/client';
+import { PasswordResetToken, Prisma } from 'generated/prisma/client';
 import { UsersService } from 'src/users/users.service';
 import { PASSWORD_RESET_TOKEN_EXPIRATION_SECONDS } from '../auth.constants';
 import { AuthMailerService } from '../auth-mailer.service';
@@ -111,5 +111,10 @@ export class PasswordResetService {
 
   hashPasswordResetToken(token: string) {
     return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  isValidToken(args: { token: PasswordResetToken }) {
+    const { token } = args;
+    return !(!token || token.expiresAt < new Date() || token.isRevoked);
   }
 }

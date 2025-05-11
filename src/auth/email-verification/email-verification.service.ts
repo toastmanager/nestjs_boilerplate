@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma } from 'generated/prisma/client';
+import { EmailVerificationToken, Prisma } from 'generated/prisma/client';
 import { AuthMailerService } from '../auth-mailer.service';
 import { UsersService } from 'src/users/users.service';
 import { EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS } from '../auth.constants';
@@ -105,5 +105,10 @@ export class EmailVerificationService {
     });
 
     return token;
+  }
+
+  isValidToken(args: { token?: EmailVerificationToken }) {
+    const { token } = args;
+    return !(!token || token.expiresAt < new Date() || token.isRevoked);
   }
 }

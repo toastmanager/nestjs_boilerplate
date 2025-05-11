@@ -11,15 +11,10 @@ import { Prisma, User } from 'generated/prisma';
 import { AuthToken } from './dtos/auth-token.dto';
 import { RegisterDto } from './dtos/register.dto';
 import { AccessTokenPayloadBase } from 'src/auth/types/access-token-payload-base';
-import {
-  EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS,
-  PASSWORD_RESET_TOKEN_EXPIRATION_SECONDS,
-  SALT_ROUNDS,
-} from './auth.constants';
+import { SALT_ROUNDS } from './auth.constants';
 import { RefreshTokenPayloadBase } from './types/refresh-token-payload-base';
 import { AuthConfig } from './auth.config';
 import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
 import { RefreshTokensService } from 'src/auth/refresh-tokens/refresh-tokens.service';
 import { RefreshTokenPayload } from './types/refresh-token-payload';
 import { TokenType } from './types/token-type';
@@ -31,7 +26,6 @@ import { AuthMailerService } from './auth-mailer.service';
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
-    private readonly authMailerService: AuthMailerService,
     private readonly emailVerificationService: EmailVerificationService,
     private readonly passwordResetService: PasswordResetService,
     private readonly refreshTokensService: RefreshTokensService,
@@ -217,12 +211,10 @@ export class AuthService {
       },
     });
 
-    const isTokenInvalid =
-      !dbVerificationToken ||
-      dbVerificationToken.expiresAt < new Date() ||
-      dbVerificationToken.isRevoked;
-
-    if (isTokenInvalid) {
+    const isTokenValid = this.emailVerificationService.isValidToken({
+      token: dbVerificationToken,
+    });
+    if (!isTokenValid) {
       throw new BadRequestException('Invalid or expired token');
     }
 
@@ -259,12 +251,10 @@ export class AuthService {
       },
     });
 
-    const isTokenInvalid =
-      !dbVerificationToken ||
-      dbVerificationToken.expiresAt < new Date() ||
-      dbVerificationToken.isRevoked;
-
-    if (isTokenInvalid) {
+    const isTokenValid = this.passwordResetService.isValidToken({
+      token: dbVerificationToken,
+    });
+    if (!isTokenValid) {
       throw new BadRequestException('Invalid or expired token');
     }
 
