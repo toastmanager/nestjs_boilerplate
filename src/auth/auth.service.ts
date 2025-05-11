@@ -13,6 +13,7 @@ import { RegisterDto } from './dtos/register.dto';
 import { AccessTokenPayloadBase } from 'src/auth/types/access-token-payload-base';
 import {
   EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS,
+  PASSWORD_RESET_TOKEN_EXPIRATION_SECONDS,
   SALT_ROUNDS,
 } from './auth.constants';
 import { RefreshTokenPayloadBase } from './types/refresh-token-payload-base';
@@ -215,7 +216,9 @@ export class AuthService {
       where,
       select: { email: true },
     });
+
     const verificationToken = await this.generateEmailVerificationToken(args);
+
     await this.authMailerService.sendVerificationEmail({
       email: user.email,
       verificationToken,
@@ -231,7 +234,7 @@ export class AuthService {
     const { where, ip, userAgent, expirationTime } = args;
 
     const user = await this.usersService.findUnique({
-      where: where,
+      where,
     });
 
     if (!user) {
@@ -239,6 +242,9 @@ export class AuthService {
     }
 
     const token = crypto.randomBytes(32).toString('hex');
+    const expiresIn =
+      expirationTime ?? EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS;
+
     await this.emailVerificationRepo.create({
       data: {
         user: {
@@ -246,13 +252,10 @@ export class AuthService {
             id: user.id,
           },
         },
-        ip: ip,
-        userAgent: userAgent,
-        token: token,
-        expiresAt: new Date(
-          Date.now() +
-            (expirationTime ?? EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS),
-        ),
+        ip,
+        userAgent,
+        token,
+        expiresAt: new Date(Date.now() + expiresIn),
       },
     });
 
@@ -271,11 +274,12 @@ export class AuthService {
       },
     });
 
-    if (
+    const isTokenInvalid =
       !dbVerificationToken ||
       dbVerificationToken.expiresAt < new Date() ||
-      dbVerificationToken.isRevoked
-    ) {
+      dbVerificationToken.isRevoked;
+
+    if (isTokenInvalid) {
       throw new BadRequestException('Invalid or expired token');
     }
 
@@ -338,6 +342,8 @@ export class AuthService {
 
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = this.hashPasswordResetToken(token);
+    const expiresIn = expirationTime ?? PASSWORD_RESET_TOKEN_EXPIRATION_SECONDS;
+
     await this.passwordResetRepo.create({
       data: {
         user: {
@@ -346,12 +352,9 @@ export class AuthService {
           },
         },
         ip: ip,
-        userAgent: userAgent,
-        tokenHash: tokenHash,
-        expiresAt: new Date(
-          Date.now() +
-            (expirationTime ?? EMAIL_VERIFICATION_TOKEN_EXPIRATION_SECONDS),
-        ),
+        userAgent,
+        tokenHash,
+        expiresAt: new Date(Date.now() + expiresIn),
       },
     });
 
@@ -376,11 +379,12 @@ export class AuthService {
       },
     });
 
-    if (
+    const isTokenInvalid =
       !dbVerificationToken ||
       dbVerificationToken.expiresAt < new Date() ||
-      dbVerificationToken.isRevoked
-    ) {
+      dbVerificationToken.isRevoked;
+
+    if (isTokenInvalid) {
       throw new BadRequestException('Invalid or expired token');
     }
 
